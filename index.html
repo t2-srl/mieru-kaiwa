@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>見える会話</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+/* レイアウト: 1画面のアプリ。上に細い状態表示、中央に大きな文字の会話欄、下に大きな操作ボタン。 */
+:root {
+  --bg: #f6f8fc;
+  --surface: #ffffff;
+  --ink: #0c1a2e;
+  --muted: #536179;
+  --line: #d3dbe8;
+  --accent: #0b57d0;
+  --accent-ink: #ffffff;
+  --live: #0a7a3b;
+  --stop: #b3261e;
+  --stop-ink: #ffffff;
+  --font: "BIZ UDPGothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  --talk-size: 44px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a111f; --surface: #121b2d; --ink: #f3f6fb; --muted: #9dabc2; --line: #2b374e;
+    --accent: #8ab4ff; --accent-ink: #0a111f; --live: #62d88f; --stop: #ff8d82; --stop-ink: #0a111f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a111f; --surface: #121b2d; --ink: #f3f6fb; --muted: #9dabc2; --line: #2b374e;
+  --accent: #8ab4ff; --accent-ink: #0a111f; --live: #62d88f; --stop: #ff8d82; --stop-ink: #0a111f;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+*, *::before, *::after { box-sizing: inherit; }
+
+.gutter {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* 上: 状態表示 */
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 10px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.name { font-size: 16px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+.status { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; color: var(--muted); }
+.dot { width: 14px; height: 14px; border-radius: 50%; background: var(--line); flex: none; }
+body[data-state="listening"] .status { color: var(--live); }
+body[data-state="listening"] .dot { background: var(--live); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { body[data-state="listening"] .dot { animation: none; } }
+
+/* 中央: 会話欄 */
+.talk {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-block: 20px;
+  font-size: var(--talk-size);
+  line-height: 1.45;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.talk p { margin: 0 0 0.55em; }
+.talk p.interim { color: var(--muted); font-weight: 400; }
+.empty { font-size: 22px; line-height: 1.7; font-weight: 400; color: var(--muted); max-width: 30em; }
+.empty strong { color: var(--ink); }
+.empty .sample {
+  margin-top: 20px; padding: 16px 18px; border: 2px dashed var(--line); border-radius: 12px;
+  font-size: var(--talk-size); line-height: 1.45; font-weight: 700; color: var(--ink);
+}
+.empty .sample small { display: block; font-size: 16px; font-weight: 400; color: var(--muted); margin-bottom: 4px; }
+
+.notice {
+  flex: none;
+  margin-block: 0 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 2px solid var(--stop);
+  background: var(--surface);
+  font-size: 20px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+
+/* 下: 操作 */
+.bottom {
+  flex: none;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: stretch;
+  padding-block: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+button {
+  font: inherit;
+  font-weight: 700;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 64px;
+  padding: 8px 18px;
+  font-size: 20px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:focus-visible { outline: 4px solid var(--accent); outline-offset: 3px; }
+button:disabled { opacity: 0.45; cursor: default; }
+.sizes { display: flex; gap: 8px; }
+.sizes button { min-width: 64px; padding-inline: 10px; }
+.sizes .small { font-size: 18px; }
+.sizes .big { font-size: 28px; }
+#main {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 26px;
+  min-height: 76px;
+}
+body[data-state="listening"] #main,
+body[data-state="starting"] #main { background: var(--stop); border-color: var(--stop); color: var(--stop-ink); }
+
+@media (max-width: 560px) {
+  .bottom { grid-template-columns: 1fr auto; }
+  #main { grid-column: 1 / -1; grid-row: 1; }
+  .empty { font-size: 19px; }
+}
+</style>
+
+<header class="top gutter">
+  <span class="name">見える会話</span>
+  <span class="status" role="status"><span class="dot" aria-hidden="true"></span><span id="statusText">準備しています</span></span>
+</header>
+
+<main class="talk gutter" id="talk" aria-live="polite">
+  <div class="empty" id="empty">
+    <p><strong>下の青いボタンを押して</strong>、スマートフォンを相手のほうに向けてください。相手の話した言葉が、ここに大きな文字で出てきます。</p>
+    <div class="sample"><small>表示の例</small>こんにちは。今日はいい天気ですね。</div>
+  </div>
+  <div id="log"></div>
+</main>
+
+<div class="gutter"><p class="notice" id="notice" hidden></p></div>
+
+<footer class="bottom gutter">
+  <div class="sizes">
+    <button type="button" id="smaller" class="small" aria-label="文字を小さくする">小</button>
+    <button type="button" id="bigger" class="big" aria-label="文字を大きくする">大</button>
+  </div>
+  <button type="button" id="main" disabled>準備しています</button>
+  <button type="button" id="clear">消す</button>
+</footer>
+
+<script>
+(function () {
+  var SIZES = [28, 36, 44, 56, 72];
+  var sizeIdx = 2;
+  try {
+    var saved = parseInt(localStorage.getItem('mieru-size'), 10);
+    if (saved >= 0 && saved < SIZES.length) sizeIdx = saved;
+  } catch (e) {}
+
+  var $ = function (id) { return document.getElementById(id); };
+  var talk = $('talk'), log = $('log'), empty = $('empty'), notice = $('notice');
+  var mainBtn = $('main'), statusText = $('statusText'), clearBtn = $('clear');
+
+  var lines = [];      // 確定した文
+  var pending = [];    // いまの聞き取り区間で確定した文(Web Speech用)
+  var interim = '';    // 途中経過
+  var state = 'idle';
+  var engine = null;
+  var wakeLock = null;
+
+  var MESSAGES = {
+    'not-allowed': 'マイクが許可されていません。ブラウザの設定でこのページのマイクを許可してから、もう一度ボタンを押してください。',
+    'network': '聞き取りのサービスにつながりませんでした。通信を確認して、もう一度ボタンを押してください。',
+    'hidden': '画面を離れたので止まりました。ボタンを押すと、また聞き取りを始めます。',
+    'time_limit': '長時間たったので止まりました。ボタンを押すと、また聞き取りを始めます。',
+    'rate_limited': '少し時間をおいてから、もう一度ボタンを押してください。',
+    'unavailable': 'この画面では聞き取りが使えませんでした。もう一度ボタンを押してみてください。',
+    'no-mic': 'マイクが見つかりませんでした。'
+  };
+  MESSAGES['service-not-allowed'] = MESSAGES['not-allowed'];
+  MESSAGES['not_granted'] = MESSAGES['not-allowed'];
+  MESSAGES['audio-capture'] = MESSAGES['no-mic'];
+  MESSAGES['upstream_error'] = MESSAGES['network'];
+
+  function applySize() {
+    document.documentElement.style.setProperty('--talk-size', SIZES[sizeIdx] + 'px');
+    $('smaller').disabled = sizeIdx === 0;
+    $('bigger').disabled = sizeIdx === SIZES.length - 1;
+    try { localStorage.setItem('mieru-size', String(sizeIdx)); } catch (e) {}
+  }
+
+  function render() {
+    var all = lines.concat(pending);
+    empty.hidden = all.length > 0 || !!interim || state !== 'idle';
+    log.textContent = '';
+    all.forEach(function (t) {
+      var p = document.createElement('p');
+      p.textContent = t;
+      log.appendChild(p);
+    });
+    if (interim) {
+      var ip = document.createElement('p');
+      ip.className = 'interim';
+      ip.textContent = interim;
+      log.appendChild(ip);
+    }
+    talk.scrollTop = talk.scrollHeight;
+  }
+
+  function commit() {
+    lines = lines.concat(pending);
+    if (interim) lines.push(interim);
+    pending = [];
+    interim = '';
+    render();
+  }
+
+  function showNotice(code) {
+    var msg = code && MESSAGES[code];
+    notice.hidden = !msg;
+    notice.textContent = msg || '';
+  }
+
+  function setState(next, reason) {
+    state = next;
+    document.body.dataset.state = next;
+    if (next === 'listening') {
+      statusText.textContent = '聞いています';
+      mainBtn.textContent = '聞き取りを止める';
+      showNotice(null);
+      keepAwake(true);
+    } else if (next === 'starting') {
+      statusText.textContent = '始めています';
+      mainBtn.textContent = '聞き取りを止める';
+    } else {
+      statusText.textContent = '止まっています';
+      mainBtn.textContent = '聞き取りを始める';
+      showNotice(reason);
+      keepAwake(false);
+    }
+    render();
+  }
+
+  function keepAwake(on) {
+    try {
+      if (on && navigator.wakeLock && !wakeLock) {
+        navigator.wakeLock.request('screen').then(function (l) {
+          wakeLock = l;
+          l.addEventListener('release', function () { wakeLock = null; });
+        }).catch(function () {});
+      } else if (!on && wakeLock) {
+        wakeLock.release().catch(function () {});
+        wakeLock = null;
+      }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && state === 'listening') keepAwake(true);
+  });
+
+  /* ブラウザ標準の音声認識(iPhoneのSafari、AndroidのChromeなど) */
+  function makeWebSpeech() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    var isAndroid = /Android/i.test(navigator.userAgent);
+    var rec = null, want = false, lastError = null, startedAt = 0, quickEnds = 0;
+
+    function begin() {
+      rec = new SR();
+      rec.lang = 'ja-JP';
+      rec.interimResults = true;
+      rec.continuous = !isAndroid;
+      startedAt = Date.now();
+      rec.onstart = function () { setState('listening'); };
+      rec.onresult = function (e) {
+        var finals = [], rest = '';
+        for (var i = 0; i < e.results.length; i++) {
+          var t = e.results[i][0].transcript.trim();
+          if (!t) continue;
+          if (e.results[i].isFinal) finals.push(t); else rest += t;
+        }
+        pending = finals;
+        interim = rest;
+        render();
+      };
+      rec.onerror = function (e) {
+        if (e.error === 'no-speech' || e.error === 'aborted') return;
+        lastError = e.error;
+        want = false;
+      };
+      rec.onend = function () {
+        commit();
+        quickEnds = (Date.now() - startedAt < 1000) ? quickEnds + 1 : 0;
+        if (want && quickEnds >= 4) { want = false; lastError = 'network'; }
+        if (!want) { setState('idle', lastError); return; }
+        setTimeout(function () {
+          if (!want) { setState('idle', lastError); return; }
+          try { begin(); } catch (err) { want = false; setState('idle', 'network'); }
+        }, 250);
+      };
+      rec.start();
+    }
+
+    return {
+      start: function () {
+        want = true; lastError = null; quickEnds = 0;
+        setState('starting');
+        try { begin(); } catch (err) { want = false; setState('idle', 'network'); }
+      },
+      stop: function () {
+        want = false;
+        try { rec && rec.stop(); } catch (err) {}
+      }
+    };
+  }
+
+  /* Claudeの画面の中で開いたときの聞き取り */
+  function makeDictation(d) {
+    var useLanguage = true;
+    d.onPartial(function (e) { interim = e.text || ''; render(); });
+    d.onFinal(function (e) {
+      var t = (e.text || '').trim();
+      if (t) lines.push(t);
+      interim = '';
+      render();
+    });
+    d.onState(function (e) {
+      if (e.state === 'idle') {
+        commit();
+        var quiet = e.reason === 'stopped' || e.reason === 'viewer_stopped' || e.reason === 'dismissed';
+        setState('idle', quiet ? null : e.reason);
+      } else {
+        setState(e.state === 'starting' ? 'starting' : 'listening');
+      }
+    });
+    return {
+      start: function () {
+        var opts = useLanguage ? { language: 'ja' } : undefined;
+        d.start(opts).catch(function (err) {
+          if (err && err.code === 'unavailable') useLanguage = false;
+          if (err && MESSAGES[err.code]) showNotice(err.code);
+        });
+      },
+      stop: function () { d.stop().catch(function () {}); }
+    };
+  }
+
+  function ready(e) {
+    engine = e;
+    if (!engine) {
+      statusText.textContent = '使えません';
+      mainBtn.textContent = '聞き取りを始める';
+      notice.hidden = false;
+      notice.textContent = window.claude
+        ? 'この画面では聞き取りが使えません。Claudeのデスクトップアプリ、またはパソコンのChromeで開いてください。'
+        : 'このブラウザでは聞き取りが使えません。iPhoneはSafari、AndroidはChromeで開いてください。';
+      return;
+    }
+    mainBtn.disabled = false;
+    setState('idle');
+  }
+
+  mainBtn.addEventListener('click', function () {
+    if (!engine) return;
+    if (state === 'idle') engine.start(); else engine.stop();
+  });
+
+  $('smaller').addEventListener('click', function () { if (sizeIdx > 0) { sizeIdx--; applySize(); render(); } });
+  $('bigger').addEventListener('click', function () { if (sizeIdx < SIZES.length - 1) { sizeIdx++; applySize(); render(); } });
+
+  var clearTimer = null;
+  clearBtn.addEventListener('click', function () {
+    if (clearTimer) {
+      clearTimeout(clearTimer); clearTimer = null;
+      clearBtn.textContent = '消す';
+      lines = []; pending = []; interim = '';
+      render();
+      return;
+    }
+    if (!lines.length && !pending.length && !interim) return;
+    clearBtn.textContent = '本当に消す';
+    clearTimer = setTimeout(function () { clearTimer = null; clearBtn.textContent = '消す'; }, 3000);
+  });
+
+  applySize();
+  render();
+
+  if (window.claude && typeof window.claude.use === 'function') {
+    window.claude.use('dictation').then(function (d) {
+      ready(d ? makeDictation(d) : null);
+    }, function () { ready(null); });
+  } else {
+    ready(makeWebSpeech());
+  }
+})();
+</script>
+</body>
+</html>
